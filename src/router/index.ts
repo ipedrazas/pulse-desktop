@@ -39,6 +39,36 @@ const router = createRouter({
       component: () => import("../views/SearchView.vue"),
       props: true,
     },
+    {
+      path: "/project/:id/files",
+      name: "file-browser",
+      component: () => import("../views/FileBrowser.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/a2",
+      name: "a2",
+      component: () => import("../views/A2View.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/api-map",
+      name: "api-map",
+      component: () => import("../views/ApiMap.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/snapshots",
+      name: "snapshots",
+      component: () => import("../views/SnapshotDiff.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/settings",
+      name: "settings",
+      component: () => import("../views/Settings.vue"),
+      props: true,
+    },
   ],
 });
 

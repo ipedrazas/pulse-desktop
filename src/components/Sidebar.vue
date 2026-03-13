@@ -10,28 +10,39 @@ const projectsStore = useProjectsStore();
 const currentProject = computed(() => projectsStore.currentProject);
 const projectId = computed(() => currentProject.value?.id);
 
-const navItems = computed(() => {
+const navSections = computed(() => {
   if (!projectId.value) return [];
+  const id = projectId.value;
   return [
     {
-      label: "Dashboard",
-      route: { name: "project-dashboard", params: { id: projectId.value } },
+      title: null,
+      items: [
+        { label: "Dashboard", route: { name: "project-dashboard", params: { id } } },
+        { label: "Run Center", route: { name: "run-center", params: { id } } },
+        { label: "a2 Policy", route: { name: "a2", params: { id } } },
+      ],
     },
     {
-      label: "Run Center",
-      route: { name: "run-center", params: { id: projectId.value } },
+      title: "Visibility",
+      items: [
+        { label: "Health", route: { name: "health-dashboard", params: { id } } },
+        { label: "API Map", route: { name: "api-map", params: { id } } },
+        { label: "Snapshots", route: { name: "snapshots", params: { id } } },
+      ],
     },
     {
-      label: "Health",
-      route: { name: "health-dashboard", params: { id: projectId.value } },
+      title: "Tools",
+      items: [
+        { label: "Context", route: { name: "context-manager", params: { id } } },
+        { label: "Files", route: { name: "file-browser", params: { id } } },
+        { label: "Search", route: { name: "search", params: { id } } },
+      ],
     },
     {
-      label: "Context",
-      route: { name: "context-manager", params: { id: projectId.value } },
-    },
-    {
-      label: "Search",
-      route: { name: "search", params: { id: projectId.value } },
+      title: null,
+      items: [
+        { label: "Settings", route: { name: "settings", params: { id } } },
+      ],
     },
   ];
 });
@@ -54,25 +65,34 @@ function isActive(name: string) {
     </div>
 
     <!-- Project nav -->
-    <nav v-if="currentProject" class="flex-1 py-2">
+    <nav v-if="currentProject" class="flex-1 py-2 overflow-y-auto">
       <div class="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
         {{ currentProject.name }}
       </div>
-      <ul class="space-y-0.5 px-2">
-        <li v-for="item in navItems" :key="item.label">
-          <router-link
-            :to="item.route"
-            class="flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors"
-            :class="
-              isActive(item.route.name as string)
-                ? 'bg-blue-600/20 text-blue-400'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-            "
-          >
-            {{ item.label }}
-          </router-link>
-        </li>
-      </ul>
+
+      <template v-for="(section, si) in navSections" :key="si">
+        <div
+          v-if="section.title"
+          class="px-4 pt-3 pb-1 text-[10px] font-medium text-gray-600 uppercase tracking-widest"
+        >
+          {{ section.title }}
+        </div>
+        <ul class="space-y-0.5 px-2">
+          <li v-for="item in section.items" :key="item.label">
+            <router-link
+              :to="item.route"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors"
+              :class="
+                isActive(item.route.name as string)
+                  ? 'bg-blue-600/20 text-blue-400'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+              "
+            >
+              {{ item.label }}
+            </router-link>
+          </li>
+        </ul>
+      </template>
     </nav>
 
     <!-- Empty state -->

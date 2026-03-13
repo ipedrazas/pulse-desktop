@@ -4,14 +4,20 @@ mod db;
 mod models;
 mod runner;
 mod search;
+mod watcher;
 
+use commands::a2;
+use commands::apimap;
 use commands::connectors;
 use commands::context;
+use commands::filebrowser;
 use commands::health;
 use commands::processes;
 use commands::projects;
 use commands::runs;
 use commands::search as search_cmd;
+use commands::snapshots;
+use commands::watchers;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -28,6 +34,10 @@ pub fn run() {
                 let pool = db::init_db().await.expect("Failed to initialize database");
                 handle.manage(pool);
             });
+
+            // Register watcher manager
+            app.manage(watcher::WatcherManager::new());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -61,8 +71,23 @@ pub fn run() {
             processes::check_service_health,
             // Connectors
             connectors::resolve_connectors,
+            connectors::stream_connector,
             // Search
             search_cmd::search_project,
+            search_cmd::search_all_projects,
+            // a2
+            a2::run_a2,
+            // File browser
+            filebrowser::get_file_tree,
+            filebrowser::read_file_content,
+            // Watchers
+            watchers::get_watcher_statuses,
+            watchers::set_watcher_enabled,
+            // Snapshots
+            snapshots::list_snapshots,
+            snapshots::diff_snapshots,
+            // API Map
+            apimap::discover_api_map,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

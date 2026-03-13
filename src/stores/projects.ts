@@ -62,6 +62,15 @@ export interface PulseConfig {
     url: string | null;
     variables: Record<string, string> | null;
   }> | null;
+  watchers: Array<{
+    id: string;
+    title: string;
+    enabled: boolean | null;
+    glob: string | null;
+    debounce_ms: number | null;
+    macro: string | null;
+    concurrency: number | null;
+  }> | null;
 }
 
 export const useProjectsStore = defineStore("projects", () => {

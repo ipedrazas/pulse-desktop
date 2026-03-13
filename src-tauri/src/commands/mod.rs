@@ -1,7 +1,12 @@
-pub mod projects;
-pub mod runs;
+pub mod a2;
+pub mod apimap;
+pub mod connectors;
 pub mod context;
+pub mod filebrowser;
 pub mod health;
 pub mod processes;
-pub mod connectors;
+pub mod projects;
+pub mod runs;
 pub mod search;
+pub mod snapshots;
+pub mod watchers;
