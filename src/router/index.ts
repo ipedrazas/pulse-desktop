@@ -27,6 +27,18 @@ const router = createRouter({
       component: () => import("../views/ContextManager.vue"),
       props: true,
     },
+    {
+      path: "/project/:id/health",
+      name: "health-dashboard",
+      component: () => import("../views/HealthDashboard.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/search",
+      name: "search",
+      component: () => import("../views/SearchView.vue"),
+      props: true,
+    },
   ],
 });
 

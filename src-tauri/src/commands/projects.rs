@@ -172,3 +172,54 @@ pub async fn get_pulse_config(root_path: String) -> Result<Option<PulseConfig>, 
 pub async fn get_git_status(root_path: String) -> Result<Option<GitInfo>, String> {
     Ok(get_git_info(Path::new(&root_path)))
 }
+
+// --- Worklog ---
+
+#[derive(serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct AgentSession {
+    pub id: i64,
+    pub project_id: String,
+    pub title: Option<String>,
+    pub tool: Option<String>,
+    pub task_summary: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[tauri::command]
+pub async fn get_worklog(
+    pool: State<'_, SqlitePool>,
+    project_id: String,
+) -> Result<Vec<AgentSession>, String> {
+    let sessions: Vec<AgentSession> = sqlx::query_as(
+        "SELECT * FROM agent_sessions WHERE project_id = ? ORDER BY updated_at DESC LIMIT 10",
+    )
+    .bind(&project_id)
+    .fetch_all(pool.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(sessions)
+}
+
+#[tauri::command]
+pub async fn save_worklog_entry(
+    pool: State<'_, SqlitePool>,
+    project_id: String,
+    title: Option<String>,
+    tool: Option<String>,
+    task_summary: Option<String>,
+) -> Result<i64, String> {
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO agent_sessions (project_id, title, tool, task_summary)
+         VALUES (?, ?, ?, ?)
+         RETURNING id",
+    )
+    .bind(&project_id)
+    .bind(&title)
+    .bind(&tool)
+    .bind(&task_summary)
+    .fetch_one(pool.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(id)
+}

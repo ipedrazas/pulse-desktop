@@ -16,17 +16,22 @@ const navItems = computed(() => {
     {
       label: "Dashboard",
       route: { name: "project-dashboard", params: { id: projectId.value } },
-      icon: "grid",
     },
     {
       label: "Run Center",
       route: { name: "run-center", params: { id: projectId.value } },
-      icon: "play",
+    },
+    {
+      label: "Health",
+      route: { name: "health-dashboard", params: { id: projectId.value } },
     },
     {
       label: "Context",
       route: { name: "context-manager", params: { id: projectId.value } },
-      icon: "file-text",
+    },
+    {
+      label: "Search",
+      route: { name: "search", params: { id: projectId.value } },
     },
   ];
 });

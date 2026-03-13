@@ -55,6 +55,13 @@ export interface PulseConfig {
       confirm: boolean | null;
     }>;
   }> | null;
+  connectors: Array<{
+    id: string;
+    title: string;
+    command: string | null;
+    url: string | null;
+    variables: Record<string, string> | null;
+  }> | null;
 }
 
 export const useProjectsStore = defineStore("projects", () => {

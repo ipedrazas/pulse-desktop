@@ -3,10 +3,15 @@ mod commands;
 mod db;
 mod models;
 mod runner;
+mod search;
 
+use commands::connectors;
 use commands::context;
+use commands::health;
+use commands::processes;
 use commands::projects;
 use commands::runs;
+use commands::search as search_cmd;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -33,6 +38,8 @@ pub fn run() {
             projects::remove_project,
             projects::get_pulse_config,
             projects::get_git_status,
+            projects::get_worklog,
+            projects::save_worklog_entry,
             // Runs
             runs::execute_macro_step,
             runs::list_runs,
@@ -41,6 +48,21 @@ pub fn run() {
             // Context
             context::get_context_files,
             context::build_context_string,
+            // Health
+            health::get_health_summary,
+            health::get_env_parity,
+            health::get_node_health,
+            health::get_go_health,
+            // Processes
+            processes::start_service,
+            processes::stop_service,
+            processes::list_services,
+            processes::check_port,
+            processes::check_service_health,
+            // Connectors
+            connectors::resolve_connectors,
+            // Search
+            search_cmd::search_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
