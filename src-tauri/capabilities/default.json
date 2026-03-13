@@ -9,7 +9,10 @@
     "core:default",
     "opener:default",
     "clipboard-manager:default",
+    "clipboard-manager:allow-write-text",
     "fs:default",
-    "dialog:default"
+    "dialog:default",
+    "dialog:allow-open",
+    "shell:default"
   ]
 }
