@@ -26,10 +26,29 @@ pub async fn get_file_tree(
 
     let walker = WalkBuilder::new(root)
         .max_depth(Some(depth))
-        .hidden(false)
+        .hidden(true)
         .git_ignore(true)
         .git_global(true)
         .git_exclude(true)
+        .filter_entry(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            // Skip common non-useful directories
+            !matches!(
+                name.as_ref(),
+                ".git" | "node_modules" | "__pycache__" | ".DS_Store"
+            )
+        })
+        .sort_by_file_path(|a, b| {
+            let a_is_dir = a.is_dir();
+            let b_is_dir = b.is_dir();
+            if a_is_dir != b_is_dir {
+                return b_is_dir.cmp(&a_is_dir); // dirs first
+            }
+            a.file_name()
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .cmp(&b.file_name().unwrap_or_default().to_ascii_lowercase())
+        })
         .build();
 
     // Collect entries, skip the root itself
@@ -55,14 +74,6 @@ pub async fn get_file_tree(
 
         entries.push((rel_path, is_dir, size));
     }
-
-    // Sort: directories first, then alphabetical
-    entries.sort_by(|a, b| {
-        if a.1 != b.1 {
-            return b.1.cmp(&a.1); // dirs first
-        }
-        a.0.cmp(&b.0)
-    });
 
     // Build flat list (tree building done on frontend for performance)
     for (rel_path, is_dir, size) in entries {

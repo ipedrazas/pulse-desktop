@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { useProjectsStore } from "../stores/projects";
+import TreeNode from "../components/TreeNode.vue";
 
 const props = defineProps<{ id: string }>();
 const projectsStore = useProjectsStore();
@@ -19,39 +20,58 @@ const files = ref<FileNode[]>([]);
 const selectedFile = ref<string | null>(null);
 const fileContent = ref<string>("");
 const loadingContent = ref(false);
+const loadingTree = ref(false);
+const treeError = ref<string | null>(null);
 const expandedDirs = ref<Set<string>>(new Set());
 
 onMounted(async () => {
   if (!project.value || project.value.id !== props.id) {
     await projectsStore.loadProject(props.id);
   }
-  if (project.value) {
+  await loadFileTree();
+});
+
+async function loadFileTree() {
+  if (!project.value) return;
+  loadingTree.value = true;
+  treeError.value = null;
+  try {
     files.value = await invoke("get_file_tree", {
       rootPath: project.value.root_path,
       maxDepth: 5,
     });
+  } catch (e) {
+    treeError.value = String(e);
+  } finally {
+    loadingTree.value = false;
   }
-});
+}
 
-// Build tree from flat list
+// Build tree from flat list — parents always appear before children
+// because the walker emits entries in depth-first order.
 const fileTree = computed(() => {
   const root: FileNode[] = [];
   const dirMap = new Map<string, FileNode>();
 
   for (const f of files.value) {
     const parts = f.path.split("/");
+    const node: FileNode = { ...f, children: f.is_dir ? [] : null };
+
     if (parts.length === 1) {
-      const node = { ...f, children: f.is_dir ? [] : null };
       root.push(node);
-      if (f.is_dir) dirMap.set(f.path, node);
     } else {
       const parentPath = parts.slice(0, -1).join("/");
       const parent = dirMap.get(parentPath);
       if (parent && parent.children) {
-        const node = { ...f, children: f.is_dir ? [] : null };
         parent.children.push(node);
-        if (f.is_dir) dirMap.set(f.path, node);
+      } else {
+        // Orphan — add to root (shouldn't happen with correct sort)
+        root.push(node);
       }
+    }
+
+    if (f.is_dir) {
+      dirMap.set(f.path, node);
     }
   }
 
@@ -59,12 +79,13 @@ const fileTree = computed(() => {
 });
 
 function toggleDir(path: string) {
-  if (expandedDirs.value.has(path)) {
-    expandedDirs.value.delete(path);
+  const next = new Set(expandedDirs.value);
+  if (next.has(path)) {
+    next.delete(path);
   } else {
-    expandedDirs.value.add(path);
+    next.add(path);
   }
-  expandedDirs.value = new Set(expandedDirs.value);
+  expandedDirs.value = next;
 }
 
 async function openFile(filePath: string) {
@@ -83,6 +104,10 @@ async function openFile(filePath: string) {
   }
 }
 
+function fileExtension(path: string): string {
+  const parts = path.split(".");
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
 </script>
 
 <template>
@@ -92,8 +117,15 @@ async function openFile(filePath: string) {
       <div class="text-xs text-gray-500 uppercase tracking-wider px-2 py-1 mb-1">
         Files
       </div>
-      <div v-if="files.length === 0" class="text-sm text-gray-600 px-2">
-        Loading...
+
+      <div v-if="loadingTree" class="text-sm text-gray-600 px-2">
+        Loading file tree...
+      </div>
+      <div v-else-if="treeError" class="text-sm text-red-400 px-2">
+        {{ treeError }}
+      </div>
+      <div v-else-if="fileTree.length === 0" class="text-sm text-gray-600 px-2">
+        No files found.
       </div>
       <template v-else>
         <TreeNode
@@ -113,6 +145,7 @@ async function openFile(filePath: string) {
     <div class="flex-1 overflow-hidden flex flex-col">
       <div v-if="selectedFile" class="border-b border-gray-800 px-4 py-2 flex items-center gap-2 shrink-0">
         <span class="text-sm font-mono text-blue-400">{{ selectedFile }}</span>
+        <span class="text-[10px] text-gray-600 ml-auto">{{ fileExtension(selectedFile) }}</span>
       </div>
       <div v-if="loadingContent" class="flex-1 flex items-center justify-center text-gray-500 text-sm">
         Loading...
@@ -127,60 +160,3 @@ async function openFile(filePath: string) {
     </div>
   </div>
 </template>
-
-<script lang="ts">
-import { defineComponent, type PropType } from "vue";
-
-interface FileNodeType {
-  name: string;
-  path: string;
-  is_dir: boolean;
-  children: FileNodeType[] | null;
-  size: number | null;
-}
-
-const TreeNode = defineComponent({
-  name: "TreeNode",
-  props: {
-    node: { type: Object as PropType<FileNodeType>, required: true },
-    depth: { type: Number, default: 0 },
-    expandedDirs: { type: Object as PropType<Set<string>>, required: true },
-    selectedFile: { type: String as PropType<string | null>, default: null },
-  },
-  emits: ["toggle-dir", "open-file"],
-  template: `
-    <div>
-      <div
-        class="flex items-center gap-1 px-2 py-0.5 text-xs cursor-pointer rounded hover:bg-gray-800/50 transition-colors"
-        :class="{ 'bg-blue-600/20 text-blue-400': selectedFile === node.path }"
-        :style="{ paddingLeft: (depth * 12 + 8) + 'px' }"
-        @click="node.is_dir ? $emit('toggle-dir', node.path) : $emit('open-file', node.path)"
-      >
-        <span class="text-gray-600 w-4 text-center shrink-0">
-          {{ node.is_dir ? (expandedDirs.has(node.path) ? '▼' : '▶') : '' }}
-        </span>
-        <span :class="node.is_dir ? 'text-gray-400' : 'text-gray-300'">
-          {{ node.name }}
-        </span>
-        <span v-if="!node.is_dir && node.size !== null" class="text-gray-700 ml-auto text-[10px]">
-          {{ node.size < 1024 ? node.size + ' B' : (node.size / 1024).toFixed(1) + ' KB' }}
-        </span>
-      </div>
-      <template v-if="node.is_dir && expandedDirs.has(node.path) && node.children">
-        <TreeNode
-          v-for="child in node.children"
-          :key="child.path"
-          :node="child"
-          :depth="depth + 1"
-          :expanded-dirs="expandedDirs"
-          :selected-file="selectedFile"
-          @toggle-dir="$emit('toggle-dir', $event)"
-          @open-file="$emit('open-file', $event)"
-        />
-      </template>
-    </div>
-  `,
-});
-
-export default { components: { TreeNode } };
-</script>
