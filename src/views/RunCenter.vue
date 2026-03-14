@@ -18,6 +18,95 @@ const pendingConfirm = ref<{
   macroId: string;
   resolve: (confirmed: boolean) => void;
 } | null>(null);
+const expandedRunId = ref<number | null>(null);
+const expandedRunLogs = ref<{ stream: string; chunk: string }[]>([]);
+const loadingLogs = ref(false);
+
+interface ParsedCheck {
+  name: string;
+  status: string;
+  message: string;
+  file: string | null;
+  line: number | null;
+}
+
+const parsedA2Checks = ref<ParsedCheck[]>([]);
+const expandedRunStderr = ref<string | null>(null);
+
+function parseA2Json(jsonStr: string): ParsedCheck[] {
+  try {
+    const value = JSON.parse(jsonStr);
+    const items: Record<string, unknown>[] = Array.isArray(value)
+      ? value
+      : value.checks || value.results || [value];
+
+    return items.map((item) => {
+      const name = (item.name || item.rule || item.id || "unknown") as string;
+      const rawStatus = ((item.status || item.result || "fail") as string).toLowerCase();
+      let status = "fail";
+      if (["pass", "ok", "success"].includes(rawStatus)) status = "pass";
+      else if (["warn", "warning"].includes(rawStatus)) status = "warning";
+
+      return {
+        name,
+        status,
+        message: (item.message || item.description || "") as string,
+        file: (item.file || item.path || null) as string | null,
+        line: (item.line || item.lineNumber || null) as number | null,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function checkStatusIcon(status: string) {
+  switch (status) {
+    case "pass":
+      return { text: "PASS", class: "text-green-400" };
+    case "fail":
+      return { text: "FAIL", class: "text-red-400" };
+    case "warning":
+      return { text: "WARN", class: "text-yellow-400" };
+    default:
+      return { text: "?", class: "text-gray-400" };
+  }
+}
+
+async function toggleRunDetail(runId: number) {
+  if (expandedRunId.value === runId) {
+    expandedRunId.value = null;
+    expandedRunLogs.value = [];
+    parsedA2Checks.value = [];
+    expandedRunStderr.value = null;
+    return;
+  }
+  expandedRunId.value = runId;
+  loadingLogs.value = true;
+  parsedA2Checks.value = [];
+  expandedRunStderr.value = null;
+  try {
+    const logs = await runsStore.getRunLogs(runId);
+    expandedRunLogs.value = logs;
+
+    // If this is an a2 run, try to parse stdout as structured checks
+    const run = runsStore.runs.find((r) => r.id === runId);
+    if (run?.kind === "a2") {
+      const stdoutLog = logs.find((l) => l.stream === "stdout");
+      if (stdoutLog?.chunk) {
+        parsedA2Checks.value = parseA2Json(stdoutLog.chunk);
+      }
+      const stderrLog = logs.find((l) => l.stream === "stderr");
+      if (stderrLog?.chunk) {
+        expandedRunStderr.value = stderrLog.chunk;
+      }
+    }
+  } catch {
+    expandedRunLogs.value = [];
+  } finally {
+    loadingLogs.value = false;
+  }
+}
 
 onMounted(async () => {
   if (!project.value || project.value.id !== props.id) {
@@ -168,26 +257,95 @@ function statusColor(status: string) {
       <div
         v-for="run in runsStore.runs"
         :key="run.id"
-        class="flex items-center justify-between py-3 px-4 bg-gray-900 rounded-lg border border-gray-800 text-sm"
+        class="bg-gray-900 rounded-lg border border-gray-800"
       >
-        <div class="flex items-center gap-4">
-          <span :class="statusColor(run.status)" class="font-medium w-20">
-            {{ run.status }}
-          </span>
-          <code class="text-gray-400 font-mono text-xs truncate max-w-md">
-            {{ run.command }}
-          </code>
-        </div>
-        <div class="flex items-center gap-4 text-xs text-gray-600">
-          <span v-if="run.exit_code !== null">exit: {{ run.exit_code }}</span>
-          <span>{{ run.started_at }}</span>
-          <button
-            v-if="run.status === 'running'"
-            @click="runsStore.cancelRun(run.id)"
-            class="text-red-400 hover:text-red-300"
-          >
-            Cancel
-          </button>
+        <button
+          @click="toggleRunDetail(run.id)"
+          class="w-full flex items-center justify-between py-3 px-4 text-sm hover:bg-gray-800/50 transition-colors text-left"
+        >
+          <div class="flex items-center gap-4">
+            <span :class="statusColor(run.status)" class="font-medium w-20">
+              {{ run.status }}
+            </span>
+            <code class="text-gray-400 font-mono text-xs truncate max-w-md">
+              {{ run.command }}
+            </code>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-gray-600">
+            <span v-if="run.exit_code !== null">exit: {{ run.exit_code }}</span>
+            <span>{{ run.started_at }}</span>
+            <button
+              v-if="run.status === 'running'"
+              @click.stop="runsStore.cancelRun(run.id)"
+              class="text-red-400 hover:text-red-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </button>
+        <div v-if="expandedRunId === run.id" class="border-t border-gray-800">
+          <div v-if="loadingLogs" class="p-4 text-xs text-gray-500">Loading logs...</div>
+          <div v-else-if="expandedRunLogs.length === 0" class="p-4 text-xs text-gray-500">
+            No output captured.
+          </div>
+
+          <!-- Parsed a2 checks -->
+          <template v-else-if="run.kind === 'a2' && parsedA2Checks.length > 0">
+            <!-- Summary bar -->
+            <div class="flex gap-4 px-4 py-2 bg-gray-950 text-xs">
+              <span class="text-green-400">
+                {{ parsedA2Checks.filter(c => c.status === 'pass').length }} passed
+              </span>
+              <span class="text-red-400">
+                {{ parsedA2Checks.filter(c => c.status === 'fail').length }} failed
+              </span>
+              <span class="text-yellow-400">
+                {{ parsedA2Checks.filter(c => c.status === 'warning').length }} warnings
+              </span>
+            </div>
+            <div class="max-h-96 overflow-y-auto divide-y divide-gray-800/50">
+              <div
+                v-for="(check, i) in parsedA2Checks"
+                :key="i"
+                class="flex items-center gap-3 py-2 px-4"
+              >
+                <span
+                  :class="checkStatusIcon(check.status).class"
+                  class="text-xs font-bold w-12 shrink-0"
+                >
+                  {{ checkStatusIcon(check.status).text }}
+                </span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm text-white">{{ check.name }}</div>
+                  <div
+                    v-if="check.message && check.message !== check.name"
+                    class="text-xs text-gray-500 truncate"
+                  >
+                    {{ check.message }}
+                  </div>
+                </div>
+                <span v-if="check.file" class="text-xs text-gray-600 font-mono shrink-0">
+                  {{ check.file }}{{ check.line ? `:${check.line}` : "" }}
+                </span>
+              </div>
+            </div>
+            <!-- stderr -->
+            <div v-if="expandedRunStderr" class="border-t border-gray-800">
+              <div class="px-4 py-1.5 text-[10px] text-gray-600 uppercase tracking-wider">stderr</div>
+              <pre class="px-4 pb-3 text-xs text-red-400 font-mono overflow-auto max-h-32">{{ expandedRunStderr }}</pre>
+            </div>
+          </template>
+
+          <!-- Generic log output (non-a2 runs) -->
+          <div v-else class="p-4 max-h-96 overflow-y-auto font-mono text-xs leading-5">
+            <div
+              v-for="(log, i) in expandedRunLogs"
+              :key="i"
+              :class="log.stream === 'stderr' ? 'text-red-400' : 'text-gray-400'"
+            >
+              {{ log.chunk }}
+            </div>
+          </div>
         </div>
       </div>
     </div>

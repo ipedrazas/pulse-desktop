@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 // --- Database models ---
 
@@ -140,6 +141,8 @@ pub struct ProjectInfo {
     #[serde(flatten)]
     pub project: Project,
     pub project_type: Option<String>,
+    pub languages: Option<Vec<String>>,
+    pub language_dirs: Option<BTreeMap<String, Vec<String>>>,
     pub git: Option<GitInfo>,
     pub has_pulse_yaml: bool,
     pub has_a2_yaml: bool,

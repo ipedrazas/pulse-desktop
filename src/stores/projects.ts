@@ -25,6 +25,8 @@ export interface ProjectInfo {
   created_at: string;
   last_opened: string;
   project_type: string | null;
+  languages: string[] | null;
+  language_dirs: Record<string, string[]> | null;
   git: GitInfo | null;
   has_pulse_yaml: boolean;
   has_a2_yaml: boolean;

@@ -38,6 +38,26 @@ interface AgentSession {
 const resolvedConnectors = ref<ResolvedConnector[]>([]);
 const worklog = ref<AgentSession[]>([]);
 const copiedConnector = ref<string | null>(null);
+const expandedRunId = ref<number | null>(null);
+const expandedRunLogs = ref<{ stream: string; chunk: string }[]>([]);
+const loadingLogs = ref(false);
+
+async function toggleRunDetail(runId: number) {
+  if (expandedRunId.value === runId) {
+    expandedRunId.value = null;
+    expandedRunLogs.value = [];
+    return;
+  }
+  expandedRunId.value = runId;
+  loadingLogs.value = true;
+  try {
+    expandedRunLogs.value = await runsStore.getRunLogs(runId);
+  } catch {
+    expandedRunLogs.value = [];
+  } finally {
+    loadingLogs.value = false;
+  }
+}
 
 // Run history trends
 const successRate = computed(() => {
@@ -101,6 +121,16 @@ function statusColor(status: string) {
         <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Type</div>
         <div class="text-white font-medium">
           {{ project.project_type || "Unknown" }}
+        </div>
+        <div v-if="project.language_dirs" class="mt-2 space-y-1">
+          <div
+            v-for="(dirs, lang) in project.language_dirs"
+            :key="lang"
+            class="flex items-center gap-2 text-xs"
+          >
+            <span class="text-blue-400 font-medium">{{ lang }}</span>
+            <span class="text-gray-500">{{ dirs.join(", ") }}</span>
+          </div>
         </div>
       </div>
       <div class="bg-gray-900 rounded-lg border border-gray-800 p-4">
@@ -244,17 +274,42 @@ function statusColor(status: string) {
         <li
           v-for="run in recentRuns"
           :key="run.id"
-          class="flex items-center justify-between py-2 px-3 bg-gray-900 rounded border border-gray-800 text-sm"
+          class="bg-gray-900 rounded border border-gray-800"
         >
-          <div class="flex items-center gap-3">
-            <span :class="statusColor(run.status)" class="font-medium">
-              {{ run.status }}
-            </span>
-            <span class="text-gray-400 font-mono text-xs truncate max-w-xs">
-              {{ run.command }}
-            </span>
+          <button
+            @click="toggleRunDetail(run.id)"
+            class="w-full flex items-center justify-between py-2 px-3 text-sm hover:bg-gray-800/50 transition-colors text-left"
+          >
+            <div class="flex items-center gap-3">
+              <span :class="statusColor(run.status)" class="font-medium">
+                {{ run.status }}
+              </span>
+              <span class="text-gray-400 font-mono text-xs truncate max-w-xs">
+                {{ run.command }}
+              </span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span v-if="run.exit_code !== null" class="text-gray-600 text-xs">
+                exit: {{ run.exit_code }}
+              </span>
+              <span class="text-gray-600 text-xs">{{ run.started_at }}</span>
+            </div>
+          </button>
+          <div v-if="expandedRunId === run.id" class="border-t border-gray-800">
+            <div v-if="loadingLogs" class="p-3 text-xs text-gray-500">Loading logs...</div>
+            <div v-else-if="expandedRunLogs.length === 0" class="p-3 text-xs text-gray-500">
+              No output captured.
+            </div>
+            <div v-else class="p-3 max-h-64 overflow-y-auto font-mono text-xs leading-5">
+              <div
+                v-for="(log, i) in expandedRunLogs"
+                :key="i"
+                :class="log.stream === 'stderr' ? 'text-red-400' : 'text-gray-400'"
+              >
+                {{ log.chunk }}
+              </div>
+            </div>
           </div>
-          <span class="text-gray-600 text-xs">{{ run.started_at }}</span>
         </li>
       </ul>
     </div>

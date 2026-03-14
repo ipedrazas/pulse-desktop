@@ -1,4 +1,4 @@
-use crate::capabilities::detect::detect_project_type;
+use crate::capabilities::detect::{detect_project_type, read_a2_languages};
 use crate::models::{GitInfo, Project, ProjectInfo, PulseConfig};
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
@@ -101,9 +101,19 @@ pub async fn open_project(pool: State<'_, SqlitePool>, path: String) -> Result<P
     let has_pulse_yaml = root.join(".pulse.yaml").exists();
     let has_a2_yaml = root.join(".a2.yaml").exists();
 
+    let (languages, language_dirs) = match read_a2_languages(root) {
+        Some(info) => (
+            Some(info.languages),
+            if info.source_dirs.is_empty() { None } else { Some(info.source_dirs) },
+        ),
+        None => (None, None),
+    };
+
     Ok(ProjectInfo {
         project,
         project_type,
+        languages,
+        language_dirs,
         git,
         has_pulse_yaml,
         has_a2_yaml,
@@ -138,9 +148,19 @@ pub async fn get_project_info(
     let has_pulse_yaml = root.join(".pulse.yaml").exists();
     let has_a2_yaml = root.join(".a2.yaml").exists();
 
+    let (languages, language_dirs) = match read_a2_languages(root) {
+        Some(info) => (
+            Some(info.languages),
+            if info.source_dirs.is_empty() { None } else { Some(info.source_dirs) },
+        ),
+        None => (None, None),
+    };
+
     Ok(ProjectInfo {
         project,
         project_type,
+        languages,
+        language_dirs,
         git,
         has_pulse_yaml,
         has_a2_yaml,

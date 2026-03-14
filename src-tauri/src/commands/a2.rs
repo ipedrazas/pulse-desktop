@@ -20,6 +20,8 @@ pub struct A2Result {
     pub pass_count: usize,
     pub fail_count: usize,
     pub warning_count: usize,
+    pub stderr: Option<String>,
+    pub run_id: i64,
 }
 
 #[tauri::command]
@@ -42,56 +44,76 @@ pub async fn run_a2(
     }
 
     let output = Command::new("a2")
-        .args(["-f", "json"])
+        .args(["check", "-v", "-f", "json"])
         .current_dir(root)
         .output()
         .map_err(|e| format!("Failed to run a2: {}", e))?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     let exit_code = output.status.code().unwrap_or(-1);
 
     // Store the run
-    let _ = sqlx::query(
+    let run_id: i64 = sqlx::query_scalar(
         "INSERT INTO runs (project_id, kind, status, command, cwd, exit_code, finished_at)
-         VALUES (?, 'a2', ?, 'a2 -f json', ?, ?, datetime('now'))",
+         VALUES (?, 'a2', ?, 'a2 check -v -f json', ?, ?, datetime('now'))
+         RETURNING id",
     )
     .bind(&project_id)
-    .bind(if output.status.success() { "success" } else { "failure" })
+    .bind(if output.status.success() {
+        "success"
+    } else {
+        "failure"
+    })
     .bind(&root_path)
     .bind(exit_code)
-    .execute(pool.inner())
-    .await;
+    .fetch_one(pool.inner())
+    .await
+    .map_err(|e| e.to_string())?;
 
-    // Store raw output as log
-    let run_id: Option<i64> = sqlx::query_scalar("SELECT MAX(id) FROM runs WHERE project_id = ?")
-        .bind(&project_id)
-        .fetch_optional(pool.inner())
-        .await
-        .ok()
-        .flatten();
-
-    if let Some(run_id) = run_id {
-        let _ = sqlx::query(
-            "INSERT INTO run_logs (run_id, stream, chunk) VALUES (?, 'stdout', ?)",
-        )
-        .bind(run_id)
-        .bind(stdout.as_ref())
-        .execute(pool.inner())
-        .await;
-
-        if !output.stderr.is_empty() {
-            let _ = sqlx::query(
-                "INSERT INTO run_logs (run_id, stream, chunk) VALUES (?, 'stderr', ?)",
-            )
+    // Store raw output as logs
+    if !stdout.is_empty() {
+        let _ = sqlx::query("INSERT INTO run_logs (run_id, stream, chunk) VALUES (?, 'stdout', ?)")
             .bind(run_id)
-            .bind(String::from_utf8_lossy(&output.stderr).as_ref())
+            .bind(&stdout)
             .execute(pool.inner())
             .await;
-        }
+    }
+
+    if !stderr.is_empty() {
+        let _ = sqlx::query("INSERT INTO run_logs (run_id, stream, chunk) VALUES (?, 'stderr', ?)")
+            .bind(run_id)
+            .bind(&stderr)
+            .execute(pool.inner())
+            .await;
+    }
+
+    // If a2 failed and stdout is empty/unparseable, return stderr as error context
+    if !output.status.success() && stdout.trim().is_empty() {
+        let err_msg = if stderr.is_empty() {
+            format!("a2 exited with code {}", exit_code)
+        } else {
+            format!("a2 exited with code {}:\n{}", exit_code, stderr.trim())
+        };
+        return Err(err_msg);
     }
 
     // Parse a2 JSON output
     let checks = parse_a2_output(&stdout, fix_hints.as_deref());
+
+    // If a2 exited non-zero but we got no parsed checks, surface the error
+    if !output.status.success() && checks.is_empty() {
+        let err_msg = if stderr.is_empty() {
+            format!(
+                "a2 exited with code {} but produced no parseable output.\nstdout: {}",
+                exit_code,
+                stdout.trim()
+            )
+        } else {
+            format!("a2 exited with code {}:\n{}", exit_code, stderr.trim())
+        };
+        return Err(err_msg);
+    }
 
     let pass_count = checks.iter().filter(|c| c.status == "pass").count();
     let fail_count = checks.iter().filter(|c| c.status == "fail").count();
@@ -102,6 +124,12 @@ pub async fn run_a2(
         pass_count,
         fail_count,
         warning_count,
+        stderr: if stderr.is_empty() {
+            None
+        } else {
+            Some(stderr)
+        },
+        run_id,
     })
 }
 

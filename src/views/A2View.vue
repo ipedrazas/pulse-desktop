@@ -22,6 +22,8 @@ interface A2Result {
   pass_count: number;
   fail_count: number;
   warning_count: number;
+  stderr: string | null;
+  run_id: number;
 }
 
 const result = ref<A2Result | null>(null);
@@ -88,6 +90,14 @@ function macroTitle(macroId: string): string {
     </div>
 
     <template v-if="result">
+      <!-- stderr output -->
+      <div v-if="result.stderr" class="bg-gray-950 border border-gray-800 rounded-lg overflow-hidden">
+        <div class="px-3 py-1.5 border-b border-gray-800 text-xs text-gray-500">
+          stderr output
+        </div>
+        <pre class="p-3 text-xs text-red-400 font-mono overflow-auto max-h-48">{{ result.stderr }}</pre>
+      </div>
+
       <!-- Summary -->
       <div class="grid grid-cols-3 gap-4">
         <div class="bg-gray-900 rounded-lg border border-gray-800 p-4 text-center">
