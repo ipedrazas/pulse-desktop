@@ -1,4 +1,4 @@
-use crate::capabilities::{go, node};
+use crate::capabilities::{go, java, node, python, rust_cap};
 use crate::capabilities::detect::detect_project_type;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -10,6 +10,9 @@ pub struct HealthSummary {
     pub project_type: Option<String>,
     pub node: Option<node::NodeHealthSnapshot>,
     pub go: Option<go::GoHealthSnapshot>,
+    pub python: Option<python::PythonHealthSnapshot>,
+    pub rust: Option<rust_cap::RustHealthSnapshot>,
+    pub java: Option<java::JavaHealthSnapshot>,
     pub env_parity: Option<EnvParityResult>,
 }
 
@@ -67,12 +70,39 @@ pub async fn get_health_summary(
         None
     };
 
+    let python_snapshot = if root.join("requirements.txt").exists()
+        || root.join("pyproject.toml").exists()
+        || root.join("setup.py").exists()
+    {
+        Some(python::get_snapshot(root)?)
+    } else {
+        None
+    };
+
+    let rust_snapshot = if root.join("Cargo.toml").exists() {
+        Some(rust_cap::get_snapshot(root)?)
+    } else {
+        None
+    };
+
+    let java_snapshot = if root.join("pom.xml").exists()
+        || root.join("build.gradle").exists()
+        || root.join("build.gradle.kts").exists()
+    {
+        Some(java::get_snapshot(root)?)
+    } else {
+        None
+    };
+
     let env_parity = check_env_parity(root);
 
     // Store as snapshot
     let payload = serde_json::json!({
         "node": &node_snapshot,
         "go": &go_snapshot,
+        "python": &python_snapshot,
+        "rust": &rust_snapshot,
+        "java": &java_snapshot,
         "env_parity": &env_parity,
     });
 
@@ -97,6 +127,9 @@ pub async fn get_health_summary(
         project_type,
         node: node_snapshot,
         go: go_snapshot,
+        python: python_snapshot,
+        rust: rust_snapshot,
+        java: java_snapshot,
         env_parity,
     })
 }
@@ -153,4 +186,19 @@ pub async fn get_node_health(root_path: String) -> Result<node::NodeHealthSnapsh
 #[tauri::command]
 pub async fn get_go_health(root_path: String) -> Result<go::GoHealthSnapshot, String> {
     go::get_snapshot(Path::new(&root_path))
+}
+
+#[tauri::command]
+pub async fn get_python_health(root_path: String) -> Result<python::PythonHealthSnapshot, String> {
+    python::get_snapshot(Path::new(&root_path))
+}
+
+#[tauri::command]
+pub async fn get_rust_health(root_path: String) -> Result<rust_cap::RustHealthSnapshot, String> {
+    rust_cap::get_snapshot(Path::new(&root_path))
+}
+
+#[tauri::command]
+pub async fn get_java_health(root_path: String) -> Result<java::JavaHealthSnapshot, String> {
+    java::get_snapshot(Path::new(&root_path))
 }

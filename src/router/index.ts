@@ -64,6 +64,30 @@ const router = createRouter({
       props: true,
     },
     {
+      path: "/project/:id/semantic-search",
+      name: "semantic-search",
+      component: () => import("../views/SemanticSearch.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/diagrams",
+      name: "diagrams",
+      component: () => import("../views/Diagrams.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/workspaces",
+      name: "workspaces",
+      component: () => import("../views/Workspaces.vue"),
+      props: true,
+    },
+    {
+      path: "/project/:id/plugins",
+      name: "plugins",
+      component: () => import("../views/Plugins.vue"),
+      props: true,
+    },
+    {
       path: "/project/:id/settings",
       name: "settings",
       component: () => import("../views/Settings.vue"),

@@ -130,5 +130,78 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .execute(pool)
     .await?;
 
+    // Phase 4 tables
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS workspaces (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS workspace_projects (
+            workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+            project_id   TEXT NOT NULL REFERENCES projects(id),
+            added_at     TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (workspace_id, project_id)
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS semantic_chunks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id  TEXT NOT NULL REFERENCES projects(id),
+            file_path   TEXT NOT NULL,
+            chunk_type  TEXT NOT NULL,
+            name        TEXT,
+            content     TEXT NOT NULL,
+            language    TEXT,
+            start_line  INTEGER,
+            end_line    INTEGER,
+            commit_sha  TEXT,
+            keywords    TEXT,
+            indexed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_semantic_chunks_project
+         ON semantic_chunks(project_id)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_semantic_chunks_keywords
+         ON semantic_chunks(keywords)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS plugins (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT,
+            version     TEXT,
+            entry_point TEXT NOT NULL,
+            plugin_type TEXT NOT NULL,
+            enabled     INTEGER NOT NULL DEFAULT 1,
+            config      TEXT,
+            installed_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }

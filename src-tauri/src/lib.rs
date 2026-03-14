@@ -10,14 +10,18 @@ use commands::a2;
 use commands::apimap;
 use commands::connectors;
 use commands::context;
+use commands::diagrams;
 use commands::filebrowser;
 use commands::health;
+use commands::plugins;
 use commands::processes;
 use commands::projects;
 use commands::runs;
 use commands::search as search_cmd;
+use commands::semantic;
 use commands::snapshots;
 use commands::watchers;
+use commands::workspaces;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -88,6 +92,27 @@ pub fn run() {
             snapshots::diff_snapshots,
             // API Map
             apimap::discover_api_map,
+            // Semantic search
+            semantic::index_project_semantics,
+            semantic::semantic_search,
+            // Diagrams
+            diagrams::generate_folder_diagram,
+            diagrams::generate_db_diagram,
+            // Workspaces
+            workspaces::list_workspaces,
+            workspaces::create_workspace,
+            workspaces::delete_workspace,
+            workspaces::add_project_to_workspace,
+            workspaces::remove_project_from_workspace,
+            // Plugins
+            plugins::list_plugins,
+            plugins::register_plugin,
+            plugins::toggle_plugin,
+            plugins::remove_plugin,
+            // Health (new capabilities)
+            health::get_python_health,
+            health::get_rust_health,
+            health::get_java_health,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

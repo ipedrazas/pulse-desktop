@@ -48,6 +48,52 @@ interface HealthSummary {
     outdated_count: number;
     vuln_count: number;
   } | null;
+  python: {
+    outdated: Array<{
+      name: string;
+      current: string;
+      latest: string;
+    }>;
+    vulnerabilities: Array<{
+      package: string;
+      vulnerability_id: string;
+      description: string;
+      fixed_in: string;
+    }>;
+    outdated_count: number;
+    vuln_count: number;
+    python_version: string | null;
+    venv_detected: boolean;
+  } | null;
+  rust: {
+    outdated: Array<{
+      name: string;
+      current: string;
+      latest: string;
+      kind: string;
+    }>;
+    vulnerabilities: Array<{
+      id: string;
+      package: string;
+      title: string;
+      severity: string;
+      url: string;
+    }>;
+    outdated_count: number;
+    vuln_count: number;
+    rust_version: string | null;
+  } | null;
+  java: {
+    outdated: Array<{
+      group: string;
+      artifact: string;
+      current: string;
+      latest: string;
+    }>;
+    outdated_count: number;
+    java_version: string | null;
+    build_tool: string;
+  } | null;
   env_parity: {
     missing_keys: string[];
     extra_keys: string[];
@@ -118,14 +164,14 @@ function severityColor(severity: string) {
       <div class="grid grid-cols-3 gap-4">
         <div class="bg-gray-900 rounded-lg border border-gray-800 p-4">
           <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Outdated</div>
-          <div class="text-2xl font-bold" :class="(health.node?.outdated_count || 0) + (health.go?.outdated_count || 0) > 0 ? 'text-yellow-400' : 'text-green-400'">
-            {{ (health.node?.outdated_count || 0) + (health.go?.outdated_count || 0) }}
+          <div class="text-2xl font-bold" :class="(health.node?.outdated_count || 0) + (health.go?.outdated_count || 0) + (health.python?.outdated_count || 0) + (health.rust?.outdated_count || 0) + (health.java?.outdated_count || 0) > 0 ? 'text-yellow-400' : 'text-green-400'">
+            {{ (health.node?.outdated_count || 0) + (health.go?.outdated_count || 0) + (health.python?.outdated_count || 0) + (health.rust?.outdated_count || 0) + (health.java?.outdated_count || 0) }}
           </div>
         </div>
         <div class="bg-gray-900 rounded-lg border border-gray-800 p-4">
           <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Vulnerabilities</div>
-          <div class="text-2xl font-bold" :class="(health.node?.vuln_count || 0) + (health.go?.vuln_count || 0) > 0 ? 'text-red-400' : 'text-green-400'">
-            {{ (health.node?.vuln_count || 0) + (health.go?.vuln_count || 0) }}
+          <div class="text-2xl font-bold" :class="(health.node?.vuln_count || 0) + (health.go?.vuln_count || 0) + (health.python?.vuln_count || 0) + (health.rust?.vuln_count || 0) > 0 ? 'text-red-400' : 'text-green-400'">
+            {{ (health.node?.vuln_count || 0) + (health.go?.vuln_count || 0) + (health.python?.vuln_count || 0) + (health.rust?.vuln_count || 0) }}
           </div>
         </div>
         <div class="bg-gray-900 rounded-lg border border-gray-800 p-4">
@@ -206,6 +252,98 @@ function severityColor(severity: string) {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Python dependencies -->
+      <div v-if="health.python">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
+          Python Dependencies
+          <span v-if="health.python.python_version" class="text-gray-600 normal-case ml-2">
+            {{ health.python.python_version }}
+          </span>
+        </h2>
+        <DependencyTable
+          :items="health.python.outdated.map(d => ({
+            name: d.name,
+            current: d.current,
+            latest: d.latest,
+            type: 'pip',
+          }))"
+        />
+
+        <div v-if="health.python.vulnerabilities.length > 0" class="mt-4">
+          <h3 class="text-sm font-medium text-red-400 mb-2">
+            Vulnerabilities ({{ health.python.vulnerabilities.length }})
+          </h3>
+          <div class="space-y-1">
+            <div
+              v-for="vuln in health.python.vulnerabilities"
+              :key="vuln.vulnerability_id"
+              class="flex items-center gap-3 py-2 px-3 bg-gray-900 rounded border border-gray-800 text-sm"
+            >
+              <span class="text-yellow-400 font-mono text-xs shrink-0">{{ vuln.vulnerability_id }}</span>
+              <span class="text-white">{{ vuln.package }}</span>
+              <span class="text-gray-500 truncate">{{ vuln.description }}</span>
+              <span v-if="vuln.fixed_in" class="text-green-400 text-xs shrink-0">
+                fixed: {{ vuln.fixed_in }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rust dependencies -->
+      <div v-if="health.rust">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
+          Rust Dependencies
+          <span v-if="health.rust.rust_version" class="text-gray-600 normal-case ml-2">
+            {{ health.rust.rust_version }}
+          </span>
+        </h2>
+        <DependencyTable
+          :items="health.rust.outdated.map(d => ({
+            name: d.name,
+            current: d.current,
+            latest: d.latest,
+            type: d.kind,
+          }))"
+        />
+
+        <div v-if="health.rust.vulnerabilities.length > 0" class="mt-4">
+          <h3 class="text-sm font-medium text-red-400 mb-2">
+            Vulnerabilities ({{ health.rust.vulnerabilities.length }})
+          </h3>
+          <div class="space-y-1">
+            <div
+              v-for="vuln in health.rust.vulnerabilities"
+              :key="vuln.id"
+              class="flex items-center gap-3 py-2 px-3 bg-gray-900 rounded border border-gray-800 text-sm"
+            >
+              <span class="text-yellow-400 font-mono text-xs shrink-0">{{ vuln.id }}</span>
+              <span class="text-white">{{ vuln.package }}</span>
+              <span class="text-gray-500 truncate">{{ vuln.title }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Java dependencies -->
+      <div v-if="health.java">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
+          Java Dependencies
+          <span v-if="health.java.java_version" class="text-gray-600 normal-case ml-2">
+            {{ health.java.java_version }}
+          </span>
+          <span class="text-gray-600 normal-case ml-2">({{ health.java.build_tool }})</span>
+        </h2>
+        <DependencyTable
+          :items="health.java.outdated.map(d => ({
+            name: d.group + ':' + d.artifact,
+            current: d.current,
+            latest: d.latest,
+            type: health!.java!.build_tool,
+          }))"
+        />
       </div>
 
       <!-- Env Parity -->

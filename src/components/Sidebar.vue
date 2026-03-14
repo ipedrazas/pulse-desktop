@@ -27,6 +27,7 @@ const navSections = computed(() => {
       items: [
         { label: "Health", route: { name: "health-dashboard", params: { id } } },
         { label: "API Map", route: { name: "api-map", params: { id } } },
+        { label: "Diagrams", route: { name: "diagrams", params: { id } } },
         { label: "Snapshots", route: { name: "snapshots", params: { id } } },
       ],
     },
@@ -36,11 +37,14 @@ const navSections = computed(() => {
         { label: "Context", route: { name: "context-manager", params: { id } } },
         { label: "Files", route: { name: "file-browser", params: { id } } },
         { label: "Search", route: { name: "search", params: { id } } },
+        { label: "Semantic Search", route: { name: "semantic-search", params: { id } } },
       ],
     },
     {
-      title: null,
+      title: "Manage",
       items: [
+        { label: "Workspaces", route: { name: "workspaces", params: { id } } },
+        { label: "Plugins", route: { name: "plugins", params: { id } } },
         { label: "Settings", route: { name: "settings", params: { id } } },
       ],
     },
