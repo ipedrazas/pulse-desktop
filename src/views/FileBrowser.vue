@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { useRoute } from "vue-router";
 import { useProjectsStore } from "../stores/projects";
 import TreeNode from "../components/TreeNode.vue";
 
 const props = defineProps<{ id: string }>();
+const route = useRoute();
 const projectsStore = useProjectsStore();
 const project = computed(() => projectsStore.currentProject);
 
@@ -29,6 +31,18 @@ onMounted(async () => {
     await projectsStore.loadProject(props.id);
   }
   await loadFileTree();
+
+  // If navigated here with a ?file= query param, auto-open it
+  const fileParam = route.query.file;
+  if (fileParam && typeof fileParam === "string") {
+    // Expand all parent directories
+    const parts = fileParam.split("/");
+    for (let i = 1; i < parts.length; i++) {
+      expandedDirs.value.add(parts.slice(0, i).join("/"));
+    }
+    expandedDirs.value = new Set(expandedDirs.value);
+    await openFile(fileParam);
+  }
 });
 
 async function loadFileTree() {

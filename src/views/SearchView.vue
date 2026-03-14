@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { useRouter } from "vue-router";
 import { useProjectsStore } from "../stores/projects";
 
-defineProps<{ id: string }>();
+const props = defineProps<{ id: string }>();
+const router = useRouter();
 const projectsStore = useProjectsStore();
 const project = computed(() => projectsStore.currentProject);
 
@@ -131,9 +133,12 @@ const fileCount = computed(() => {
           :key="file"
           class="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden"
         >
-          <div class="px-4 py-2 border-b border-gray-800 text-sm font-mono text-blue-400">
+          <button
+            class="w-full px-4 py-2 border-b border-gray-800 text-sm font-mono text-blue-400 text-left hover:bg-gray-800/50 transition-colors cursor-pointer"
+            @click="router.push({ name: 'file-browser', params: { id: props.id }, query: { file } })"
+          >
             {{ file }}
-          </div>
+          </button>
           <div class="divide-y divide-gray-800/50">
             <div
               v-for="result in fileResults"
