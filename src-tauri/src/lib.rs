@@ -96,8 +96,9 @@ pub fn run() {
             semantic::index_project_semantics,
             semantic::semantic_search,
             // Diagrams
-            diagrams::generate_folder_diagram,
+            diagrams::extract_mermaid_diagrams,
             diagrams::generate_db_diagram,
+            diagrams::save_diagram_to_file,
             // Workspaces
             workspaces::list_workspaces,
             workspaces::create_workspace,
